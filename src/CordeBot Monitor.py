@@ -2,13 +2,18 @@ import os
 import time
 from datetime import datetime
 import cv2
+import sys
 
-SAVER_TIMER = 25 # Seconds to save a new image.
+original_stdout = sys.stdout
+sys.stdout = None
+
+SAVER_TIMER = 25  # Seconds to save a new image.
 
 parent_folder = os.path.abspath(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
 with open(os.path.join(parent_folder, "etc", "config"), "r") as f:
     address = str(f.readline())
 address.replace("\n", "")
+
 
 def mkdirs(current_path, paths):
     """
@@ -28,31 +33,38 @@ def save(current, frame):
     filename = str(os.path.join(mkdirs(parent_folder, ("savings", date)), str(current.strftime("%H_%M_%S")))) + ".png"
     cv2.imwrite(filename=filename, img=frame)
 
+
 camera = cv2.VideoCapture("rtsp://{}".format(address))
 errors = 0
 last = datetime.now()
+counter = 0
 
 if camera.isOpened():
+
     while errors < 14:
+        counter += 1
+        if counter == 12:
+            sys.stdout = original_stdout
+            print("CordeBot Monitor Initiated")
         try:
             ret, frame = camera.read()
             errors -= 1 if errors > 0 else 0
+            # cv2.imshow("CordeBot Monitor", frame)
+            current = datetime.now()
+            timer = current - last
+
+            if timer.seconds > SAVER_TIMER:
+                save(current, frame)
+                last = current
         except:
             errors += 1
-            print("get no frame")
-        # cv2.imshow("Foscam-Lamb", frame)
+            print("ERROR: No frame arrived")
 
-        current = datetime.now()
-        timer = current - last
-
-        if timer.seconds > SAVER_TIMER:
-            save(current, frame)
-            last = current
-
-        time.sleep(0.5)
+        # time.sleep(0.5)
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
 else:
     print("ERROR MESSAGE: The Foscam Camera is not opened")
 camera.release()
 cv2.destroyAllWindows()
+print("CordeBot Monitor Closed")
